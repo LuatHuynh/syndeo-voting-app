@@ -1,71 +1,62 @@
-# Architecture and Data Flow
+# Architecture and File Ownership
 
-## High-level design
+## Application flow
 
 ```mermaid
 flowchart TD
   A[Zalo client / browser host] --> B[src/app.ts]
   B --> C[React Router]
-  C --> D[Layout: Header, page outlet, Footer]
-  D --> E[Pages and reusable components]
-  E --> F[Jotai atoms]
-  F --> G[requestWithFallback]
-  G -->|template.apiUrl configured| H[Remote API]
-  G -->|template.apiUrl empty| I[src/mock JSON]
-  E --> J[zmp-sdk native integrations]
+  C --> D[PaddleApp coordinator]
+  D --> E[Paddle screens]
+  D --> F[Paddle components]
+  D --> G[Local demo state]
 ```
+
+The active application is a frontend-only Paddle Sport demo. `src/app.ts` loads
+ZaUI, Tailwind, and app styles before mounting React Router. The single route in
+`src/router.tsx` renders `PaddleApp` at `/` with the environment-aware basename
+from `src/utils/zma.ts`.
 
 ## Routes
 
-All routes are defined in `src/router.tsx` beneath the shared `Layout`.
+| Path | Page         | Behavior                                                                      |
+| ---- | ------------ | ----------------------------------------------------------------------------- |
+| `/`  | Paddle Sport | Renders the three swipeable primary tabs and all associated workflow screens. |
 
-| Path            | Page           | Header behavior                                                                |
-| --------------- | -------------- | ------------------------------------------------------------------------------ |
-| `/`             | Home           | logo mode                                                                      |
-| `/categories`   | Category list  | `Danh mục sản phẩm`; back disabled                                             |
-| `/cart`         | Cart           | `Giỏ hàng`                                                                     |
-| `/profile`      | Profile        | logo mode                                                                      |
-| `/flash-sales`  | Product list   | `Flash Sales`                                                                  |
-| `/category/:id` | Product list   | resolves the category name from loaded state                                   |
-| `/product/:id`  | Product detail | uses the default header behavior; resets scroll for related-product navigation |
-| `/search`       | Search         | `Tìm kiếm`                                                                     |
+The primary tabs are rendered in one horizontal track, so switching between
+`Trang chủ`, `Buổi chơi`, and `Cá nhân` retains their mounted UI state. The
+footer navigation is part of this tab shell.
 
-`src/utils/zma.ts` supplies the browser router base. It returns `/zapps/${window.APP_ID}` in production and known Zalo test/development host environments, and otherwise uses `window.BASE_PATH` or an empty string. Do not replace this with a fixed root path: deep links such as product sharing depend on Zalo-hosted routing.
+## Paddle module structure
 
-## State
+`src/pages/paddle/` owns the complete Paddle Sport frontend:
 
-`src/state.ts` contains the central Jotai atoms.
+| Location       | Responsibility                                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------------------------------- |
+| `index.tsx`    | App coordinator, local state, tab swiping, navigation, and screen composition.                                  |
+| `types.ts`     | Shared screen, role, time, and set-count types.                                                                 |
+| `constants.ts` | Picker data, demo participants, and currency formatting helpers.                                                |
+| `components/`  | Small shared UI primitives such as `MoneyInput` and `PaddleHeader`.                                             |
+| `screens/`     | Page-level screens grouped by workflow: primary tabs, creation, session, scoring, payment, summary, and review. |
 
-| Domain          | Atoms / behavior                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------------------------- |
-| Current user    | `userState` calls `zmp-sdk.getUserInfo()` asynchronously.                                                   |
-| Catalog         | `bannersState`, `categoriesState`, and `productsState`; product data is joined to its category.             |
-| Product options | tabs, size, and color atoms; product-specific selection also lives in `useAddToCart()`.                     |
-| Cart            | `cartState`, selected cart IDs, derived checkout items, and calculated total. Cart state is in memory only. |
-| Search          | `keywordState` and `searchResultState`, which currently waits one second before filtering loaded products.  |
+## State and interactions
 
-When adding a domain that is shared between pages, model it as a Jotai atom in `src/state.ts`. Keep derived values derived rather than duplicating them in component state.
+The demo keeps its state locally in `PaddleApp`:
 
-## Data access
+- Role selection: `host` or `player`.
+- Session details: name, date, start time, cost mode, cost value/range, and optional set count.
+- Session progress: check-ins, score saved state, and payment confirmation.
+- Review state: venue/host star rating and next-set setting.
+- Short user feedback is shown through a local toast state.
 
-`src/utils/request.ts` provides `request<T>()` and `requestWithFallback<T>()`.
+ZaUI components from `zmp-ui` are used for inputs, date/time selection, radio
+buttons, checkboxes, text areas, and primary workflow actions. This demo does
+not invoke host payment, sharing, or identity SDK integrations; those need a
+confirmed backend and Zalo runtime contract before being implemented.
 
-1. `getConfig()` reads `template.apiUrl` from `app-config.json`.
-2. With a non-empty API URL, the client requests `${apiUrl}${path}`.
-3. With an empty API URL, Vite imports matching JSON from `src/mock/` and uses the matching URL.
-4. `requestWithFallback()` catches failures, logs warnings, and returns its supplied default value.
+## Legacy cleanup
 
-Current catalog endpoints are `/banners`, `/categories`, and `/products`. A backend replacement must preserve those data shapes or update `src/types.d.ts`, mocks, atoms, and page consumers together. New authenticated requests must implement the server and token contract required by the official Zalo authentication documentation; this template does not currently add an authorization header.
-
-## UI composition
-
-- `src/components/layout.tsx` owns the full-screen shell, header, scrollable route outlet, footer, toast layer, and scroll restoration.
-- `src/components/header.tsx` reads route handles through `useRouteHandle()` and renders either a dynamic title/back control or logo mode.
-- `src/components/footer.tsx` contains the bottom navigation and cart indicator.
-- `src/pages/` holds page-level composition; `src/components/` holds reusable visual controls; `src/utils/` contains framework-independent helpers and host integration helpers.
-
-## Important current behavior
-
-- `useAddToCart()` merges cart lines with the same product and option combination; cart line IDs are generated from current array length and are not persistent.
-- `useCheckout()` invokes the Zalo purchase API, then clears the in-memory cart only when the promise resolves.
-- The project contains placeholder, inherited business copy and branding. In particular, logo-mode header text is a test label. Do not assume it is approved product content.
+The previous generated catalog template, including `src/components/` and
+`src/pages/home/`, was removed because it was no longer routed or imported.
+New shared Paddle UI belongs under `src/pages/paddle/components/`, rather than
+a global component folder.

@@ -1,22 +1,12 @@
-import Layout from "@/components/layout";
-import HomePage from "@/pages/home";
 import { createBrowserRouter } from "react-router-dom";
 import { getBasePath } from "@/utils/zma";
+import PaddleApp from "@/pages/paddle";
 
 const router = createBrowserRouter(
   [
     {
       path: "/",
-      element: <Layout />,
-      children: [
-        {
-          path: "/",
-          element: <HomePage />,
-          handle: {
-            logo: true,
-          },
-        },
-      ],
+      element: <PaddleApp />,
     },
   ],
   { basename: getBasePath() },
