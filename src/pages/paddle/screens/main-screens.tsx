@@ -1,23 +1,47 @@
-import type { Role, Screen, SessionTime } from "../types";
+import type { PaddleSession, Role, Screen } from "../types";
 
 type ScreenChange = (screen: Screen) => void;
 
-type HomeScreenProps = {
-  role: Role;
-  sessionName: string;
-  sessionTime: SessionTime;
-  onRoleChange: (role: Role) => void;
+type SessionListProps = {
+  sessions: PaddleSession[];
+  onSessionSelect: (sessionId: string) => void;
   onScreenChange: ScreenChange;
 };
 
+type HomeScreenProps = SessionListProps & {
+  role: Role;
+  onRoleChange: (role: Role) => void;
+};
+
+const statusLabel = (status: PaddleSession["status"]) =>
+  status === "open" ? "Đang mở" : "Đã kết thúc";
+
+const sessionDate = (session: PaddleSession) => ({
+  day: String(session.date.getDate()).padStart(2, "0"),
+  month: session.date.getMonth() + 1,
+});
+
 export function HomeScreen({
   role,
-  sessionName,
-  sessionTime,
+  sessions,
   onRoleChange,
+  onSessionSelect,
   onScreenChange,
 }: HomeScreenProps) {
   const isHost = role === "host";
+  const hostedSessions = sessions.filter(
+    (session) => session.isHostedByCurrentUser,
+  );
+  const playerSessions = sessions.filter(
+    (session) =>
+      !session.isHostedByCurrentUser &&
+      session.currentUserParticipation !== "none",
+  );
+
+  const openSession = (session: PaddleSession) => {
+    onSessionSelect(session.id);
+    onScreenChange("session");
+  };
 
   return (
     <main className="paddle-content paddle-home">
@@ -56,36 +80,53 @@ export function HomeScreen({
           <div className="paddle-section-heading">
             <div>
               <p className="paddle-eyebrow">Buổi chơi của bạn</p>
-              <h2>Sắp diễn ra</h2>
+              <h2>Buổi chơi</h2>
             </div>
-            <button
-              className="paddle-text-button"
-              type="button"
-              onClick={() => onScreenChange("report")}
-            >
-              Xem tất cả
-            </button>
+            {hostedSessions.length > 3 && (
+              <button
+                className="paddle-text-button"
+                type="button"
+                onClick={() => onScreenChange("report")}
+              >
+                Xem tất cả
+              </button>
+            )}
+          </div>
+          <div className="paddle-session-list">
+            {hostedSessions.slice(0, 3).map((session) => {
+              const date = sessionDate(session);
+              return (
+                <button
+                  className="paddle-session-card"
+                  type="button"
+                  key={session.id}
+                  onClick={() => openSession(session)}
+                >
+                  <div className="paddle-date">
+                    <strong>{date.day}</strong>
+                    <span>THG {date.month}</span>
+                  </div>
+                  <div className="paddle-session-main">
+                    <span
+                      className={`paddle-status ${
+                        session.status === "completed" ? "is-completed" : ""
+                      }`}
+                    >
+                      {statusLabel(session.status)}
+                    </span>
+                    <strong>{session.name}</strong>
+                    <span>
+                      {session.time.hour}:{session.time.minute} -{" "}
+                      {session.location}
+                    </span>
+                  </div>
+                  <span className="paddle-chevron">›</span>
+                </button>
+              );
+            })}
           </div>
           <button
-            className="paddle-session-card"
-            type="button"
-            onClick={() => onScreenChange("session")}
-          >
-            <div className="paddle-date">
-              <strong>05</strong>
-              <span>THG 9</span>
-            </div>
-            <div className="paddle-session-main">
-              <span className="paddle-status">Dang mo</span>
-              <strong>{sessionName}</strong>
-              <span>
-                {sessionTime.hour}:{sessionTime.minute} - Padel Hub, Quan 2
-              </span>
-            </div>
-            <span className="paddle-chevron">›</span>
-          </button>
-          <button
-            className="paddle-primary-button"
+            className="paddle-primary-button mt-4"
             type="button"
             onClick={() => onScreenChange("create")}
           >
@@ -95,24 +136,32 @@ export function HomeScreen({
       ) : (
         <section className="paddle-section">
           <p className="paddle-eyebrow">Lịch của bạn</p>
-          <h2>Trận sắp tới</h2>
-          <button
-            className="paddle-player-session"
-            type="button"
-            onClick={() => onScreenChange("session")}
-          >
-            <span className="paddle-status">Đã xác nhận</span>
-            <strong>{sessionName}</strong>
-            <span>
-              Hôm nay, {sessionTime.hour}:{sessionTime.minute} · Padel Hub, Quan
-              2
-            </span>
-            <div>
-              <span className="paddle-avatar mini">MA</span>
-              <span className="paddle-avatar mini">QH</span>
-              <span className="paddle-avatar mini">+2</span>
-            </div>
-          </button>
+          <h2>Buổi chơi đã tham gia</h2>
+          <div className="paddle-session-list">
+            {playerSessions.map((session) => (
+              <button
+                className="paddle-player-session"
+                type="button"
+                key={session.id}
+                onClick={() => openSession(session)}
+              >
+                <span className="paddle-status">
+                  {session.currentUserParticipation === "checked-in"
+                    ? "Đã check-in"
+                    : "Được mời"}
+                </span>
+                <strong>{session.name}</strong>
+                <span>
+                  {session.time.hour}:{session.time.minute} · {session.location}
+                </span>
+                <div>
+                  <span className="paddle-avatar mini">MA</span>
+                  <span className="paddle-avatar mini">QH</span>
+                  <span className="paddle-avatar mini">+2</span>
+                </div>
+              </button>
+            ))}
+          </div>
           <div className="paddle-tip">
             <span>◎</span>
             <p>Check-in khi đến sân để host có thể xếp trận cho bạn.</p>
@@ -138,12 +187,21 @@ export function HomeScreen({
   );
 }
 
-type ReportScreenProps = {
+type ReportScreenProps = SessionListProps & {
   role: Role;
-  onScreenChange: ScreenChange;
 };
 
-export function ReportScreen({ role, onScreenChange }: ReportScreenProps) {
+export function ReportScreen({
+  role,
+  sessions,
+  onSessionSelect,
+  onScreenChange,
+}: ReportScreenProps) {
+  const openSession = (session: PaddleSession) => {
+    onSessionSelect(session.id);
+    onScreenChange("session");
+  };
+
   return (
     <main className="paddle-content">
       <section className="paddle-report-top">
@@ -151,7 +209,7 @@ export function ReportScreen({ role, onScreenChange }: ReportScreenProps) {
         <h2>Báo cáo của {role === "host" ? "host" : "người chơi"}</h2>
         <div>
           <span>
-            <b>12</b> buổi chơi
+            <b>{sessions.length}</b> buổi chơi
           </span>
           <span>
             <b>32</b> set
@@ -168,26 +226,27 @@ export function ReportScreen({ role, onScreenChange }: ReportScreenProps) {
             <h2>Trận đã chơi</h2>
           </div>
         </div>
-        {["Padel after work", "Saturday mix", "Morning rally"].map(
-          (name, index) => (
+        {sessions.map((session) => {
+          const date = sessionDate(session);
+          return (
             <button
               className="paddle-history-row"
               type="button"
-              key={name}
-              onClick={() => onScreenChange("session")}
+              key={session.id}
+              onClick={() => openSession(session)}
             >
               <span className="paddle-date small">
-                <strong>{5 - index * 2}</strong>
-                <span>THG 9</span>
+                <strong>{date.day}</strong>
+                <span>THG {date.month}</span>
               </span>
               <span>
-                <strong>{name}</strong>
-                <small>{index === 0 ? "Thắng 2 - 1" : "Đã hoàn thành"}</small>
+                <strong>{session.name}</strong>
+                <small>{statusLabel(session.status)}</small>
               </span>
               <span>›</span>
             </button>
-          ),
-        )}
+          );
+        })}
       </section>
     </main>
   );

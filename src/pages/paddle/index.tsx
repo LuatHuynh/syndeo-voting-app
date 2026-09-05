@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { TouchEvent } from "react";
+import { useAtom } from "jotai";
 import { currency, formatMoney, TAB_SCREENS } from "./constants";
 import PaddleHeader from "./components/paddle-header";
 import CreateSessionScreen from "./screens/create-session-screen";
@@ -15,7 +16,21 @@ import {
 } from "./screens/match-screens";
 import ReviewScreen from "./screens/review-screen";
 import SessionScreen from "./screens/session-screen";
-import type { Role, Screen, SessionTime, SetCount } from "./types";
+import {
+  createDefaultSettlement,
+  createDefaultHostParticipants,
+  getCurrentUserParticipation,
+  selectedSessionIdAtom,
+  sessionsAtom,
+} from "./store";
+import type {
+  PaddleSession,
+  Role,
+  Screen,
+  SessionSettlement,
+  SessionTime,
+  SetCount,
+} from "./types";
 
 const PAGE_TITLES: Partial<Record<Screen, string>> = {
   create: "Tạo buổi chơi",
@@ -26,13 +41,21 @@ const PAGE_TITLES: Partial<Record<Screen, string>> = {
   review: "Đánh giá",
 };
 
+const countCheckedInParticipants = (session?: PaddleSession) =>
+  session?.participants.filter((participant) => participant.checkedIn).length ??
+  0;
+
+const checkedInParticipants = (session?: PaddleSession) =>
+  session?.participants.filter((participant) => participant.checkedIn) ?? [];
+
 export default function PaddleApp() {
   const [screen, setScreen] = useState<Screen>("home");
   const [role, setRole] = useState<Role>("host");
-  const [checkedIn, setCheckedIn] = useState(2);
-  const [paid, setPaid] = useState(false);
   const [savedScore, setSavedScore] = useState(false);
-  const [isSessionComplete, setIsSessionComplete] = useState(false);
+  const [sessions, setSessions] = useAtom(sessionsAtom);
+  const [selectedSessionId, setSelectedSessionId] = useAtom(
+    selectedSessionIdAtom,
+  );
   const [sessionName, setSessionName] = useState("Padel after work");
   const [sessionDate, setSessionDate] = useState(new Date(2026, 8, 5));
   const [sessionTime, setSessionTime] = useState<SessionTime>({
@@ -48,6 +71,8 @@ export default function PaddleApp() {
   const [venueRating, setVenueRating] = useState(4);
   const [toast, setToast] = useState("");
   const swipeStartX = useRef<number | null>(null);
+  const selectedSession =
+    sessions.find((session) => session.id === selectedSessionId) ?? sessions[0];
 
   const notify = (message: string) => {
     setToast(message);
@@ -61,6 +86,65 @@ export default function PaddleApp() {
     costMode === "fixed"
       ? currency(Number(fixedCost || 0))
       : `${formatMoney(minimumCost)} - ${formatMoney(maximumCost)} d`;
+  const roleScopedSessions =
+    role === "host"
+      ? sessions.filter((session) => session.isHostedByCurrentUser)
+      : sessions.filter(
+          (session) =>
+            !session.isHostedByCurrentUser &&
+            session.currentUserParticipation !== "none",
+        );
+
+  const updateSelectedSession = (updates: Partial<PaddleSession>) => {
+    setSessions((currentSessions) =>
+      currentSessions.map((session) =>
+        session.id === selectedSessionId ? { ...session, ...updates } : session,
+      ),
+    );
+  };
+
+  const selectSession = (sessionId: string) => {
+    const session = sessions.find((item) => item.id === sessionId);
+    if (!session) return;
+
+    setSelectedSessionId(sessionId);
+    setSessionName(session.name);
+    setSessionDate(session.date);
+    setSessionTime(session.time);
+    setCostMode(session.costMode);
+    setFixedCost(session.fixedCost);
+    setMinimumCost(session.minimumCost);
+    setMaximumCost(session.maximumCost);
+    setSetCount(session.setCount);
+  };
+
+  const createSession = () => {
+    const sessionId = `session-${Date.now()}`;
+    const newSession: PaddleSession = {
+      id: sessionId,
+      name: sessionName,
+      date: sessionDate,
+      time: sessionTime,
+      location: "Padel Hub, Quan 2",
+      costMode: costMode === "range" ? "range" : "fixed",
+      fixedCost,
+      minimumCost,
+      maximumCost,
+      setCount,
+      participants: createDefaultHostParticipants(),
+      matchHistory: [],
+      settlement: createDefaultSettlement(),
+      isHostedByCurrentUser: true,
+      currentUserParticipation: "none",
+      isCurrentUserPaid: false,
+      status: "open",
+    };
+
+    setSessions((currentSessions) => [newSession, ...currentSessions]);
+    setSelectedSessionId(sessionId);
+    setScreen("session");
+    notify("Buổi chơi đã được tạo");
+  };
 
   const handleTabSwipeStart = (event: TouchEvent<HTMLDivElement>) => {
     swipeStartX.current = event.touches[0]?.clientX ?? null;
@@ -96,12 +180,17 @@ export default function PaddleApp() {
       >
         <HomeScreen
           role={role}
-          sessionName={sessionName}
-          sessionTime={sessionTime}
+          sessions={sessions}
           onRoleChange={setRole}
+          onSessionSelect={selectSession}
           onScreenChange={setScreen}
         />
-        <ReportScreen role={role} onScreenChange={setScreen} />
+        <ReportScreen
+          role={role}
+          sessions={roleScopedSessions}
+          onSessionSelect={selectSession}
+          onScreenChange={setScreen}
+        />
         <ProfileScreen onScreenChange={setScreen} onNotify={notify} />
       </div>
     </div>
@@ -128,11 +217,7 @@ export default function PaddleApp() {
           onMinimumCostChange={setMinimumCost}
           onMaximumCostChange={setMaximumCost}
           onSetCountChange={setSetCount}
-          onSubmit={() => {
-            setIsSessionComplete(false);
-            setScreen("session");
-            notify("Buổi chơi đã được tạo");
-          }}
+          onSubmit={createSession}
         />
       );
       break;
@@ -140,16 +225,83 @@ export default function PaddleApp() {
       detailContent = (
         <SessionScreen
           role={role}
-          checkedIn={checkedIn}
-          paid={paid}
-          isSessionComplete={isSessionComplete}
-          sessionName={sessionName}
-          sessionTime={sessionTime}
-          setCount={setCount}
-          sessionCost={sessionCost}
-          onCheckIn={() => setCheckedIn((count) => Math.min(4, count + 1))}
+          checkedIn={countCheckedInParticipants(selectedSession)}
+          participants={selectedSession?.participants ?? []}
+          paid={selectedSession?.isCurrentUserPaid ?? false}
+          isSessionComplete={selectedSession?.status === "completed"}
+          sessionName={selectedSession?.name ?? sessionName}
+          sessionTime={selectedSession?.time ?? sessionTime}
+          setCount={selectedSession?.setCount ?? setCount}
+          sessionCost={
+            selectedSession
+              ? selectedSession.costMode === "fixed"
+                ? currency(Number(selectedSession.fixedCost || 0))
+                : `${formatMoney(selectedSession.minimumCost)} - ${formatMoney(selectedSession.maximumCost)} d`
+              : sessionCost
+          }
+          matchHistory={selectedSession?.matchHistory ?? []}
+          onToggleCheckIn={(participantId) => {
+            if (!selectedSession || selectedSession.status === "completed")
+              return;
+
+            setSessions((currentSessions) =>
+              currentSessions.map((session) => {
+                if (session.id !== selectedSession.id) return session;
+
+                const participant = session.participants.find(
+                  (item) => item.id === participantId,
+                );
+                if (!participant) return session;
+
+                const isAllowed = role === "host" || participant.isCurrentUser;
+                if (!isAllowed) return session;
+
+                const participants = session.participants.map((item) =>
+                  item.id === participantId
+                    ? { ...item, checkedIn: !item.checkedIn }
+                    : item,
+                );
+
+                return {
+                  ...session,
+                  participants,
+                  currentUserParticipation: getCurrentUserParticipation(
+                    session.isHostedByCurrentUser,
+                    participants,
+                  ),
+                };
+              }),
+            );
+          }}
+          onTogglePaid={(participantId) => {
+            if (!selectedSession || role !== "host") return;
+
+            setSessions((currentSessions) =>
+              currentSessions.map((session) => {
+                if (session.id !== selectedSession.id) return session;
+
+                const participant = session.participants.find(
+                  (item) => item.id === participantId,
+                );
+                if (!participant) return session;
+
+                const nextPaid = !participant.paid;
+                const participants = session.participants.map((item) =>
+                  item.id === participantId ? { ...item, paid: nextPaid } : item,
+                );
+
+                return {
+                  ...session,
+                  participants,
+                  isCurrentUserPaid: participants.find(
+                    (item) => item.isCurrentUser,
+                  )?.paid ?? session.isCurrentUserPaid,
+                };
+              }),
+            );
+          }}
           onViewSummary={() => {
-            setIsSessionComplete(true);
+            updateSelectedSession({ status: "completed" });
             setScreen("summary");
           }}
           onScreenChange={setScreen}
@@ -161,12 +313,33 @@ export default function PaddleApp() {
       detailContent = (
         <ScoreScreen
           savedScore={savedScore}
+          checkedInParticipants={checkedInParticipants(selectedSession)}
+          nextSetNumber={(selectedSession?.matchHistory.length ?? 0) + 1}
           scheduleNextSet={scheduleNextSet}
           onScheduleNextSetChange={setScheduleNextSet}
-          onSave={() => {
+          onSave={(result) => {
+            if (!selectedSession) return;
+
+            setSessions((currentSessions) =>
+              currentSessions.map((session) => {
+                if (session.id !== selectedSession.id) return session;
+
+                return {
+                  ...session,
+                  matchHistory: [
+                    ...session.matchHistory,
+                    {
+                      ...result,
+                      id: `set-${Date.now()}`,
+                      createdAt: new Date(),
+                    },
+                  ],
+                };
+              }),
+            );
             setSavedScore(true);
             setScreen("session");
-            notify("Đã lưu kết quả set 1");
+            notify(`Đã lưu kết quả set ${result.setNumber}`);
           }}
         />
       );
@@ -174,9 +347,30 @@ export default function PaddleApp() {
     case "summary":
       detailContent = (
         <SummaryScreen
-          sessionName={sessionName}
-          setCount={setCount}
-          paid={paid}
+          isHost={role === "host"}
+          participantCount={selectedSession?.participants.length ?? 0}
+          sessionName={selectedSession?.name ?? sessionName}
+          setCount={selectedSession?.setCount ?? setCount}
+          settlement={
+            selectedSession?.settlement ?? createDefaultSettlement()
+          }
+          onSettlementChange={(updates: Partial<SessionSettlement>) => {
+            if (!selectedSession) return;
+
+            setSessions((currentSessions) =>
+              currentSessions.map((session) => {
+                if (session.id !== selectedSession.id) return session;
+
+                return {
+                  ...session,
+                  settlement: {
+                    ...session.settlement,
+                    ...updates,
+                  },
+                };
+              }),
+            );
+          }}
           onScreenChange={setScreen}
           onNotify={notify}
         />
@@ -185,10 +379,32 @@ export default function PaddleApp() {
     case "payment":
       detailContent = (
         <PaymentScreen
-          sessionName={sessionName}
-          sessionCost={sessionCost}
+          sessionName={selectedSession?.name ?? sessionName}
+          sessionCost={
+            selectedSession
+              ? selectedSession.costMode === "fixed"
+                ? currency(Number(selectedSession.fixedCost || 0))
+                : `${formatMoney(selectedSession.minimumCost)} - ${formatMoney(selectedSession.maximumCost)} d`
+              : sessionCost
+          }
           onConfirm={() => {
-            setPaid(true);
+            if (!selectedSession) return;
+
+            setSessions((currentSessions) =>
+              currentSessions.map((session) => {
+                if (session.id !== selectedSession.id) return session;
+
+                return {
+                  ...session,
+                  isCurrentUserPaid: true,
+                  participants: session.participants.map((participant) =>
+                    participant.isCurrentUser
+                      ? { ...participant, paid: true }
+                      : participant,
+                  ),
+                };
+              }),
+            );
             setScreen("session");
             notify("Đã xác nhận thanh toán");
           }}

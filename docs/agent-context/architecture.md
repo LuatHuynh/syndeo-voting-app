@@ -9,7 +9,7 @@ flowchart TD
   C --> D[PaddleApp coordinator]
   D --> E[Paddle screens]
   D --> F[Paddle components]
-  D --> G[Local demo state]
+  D --> G[Paddle Jotai session store]
 ```
 
 The active application is a frontend-only Paddle Sport demo. `src/app.ts` loads
@@ -33,19 +33,30 @@ footer navigation is part of this tab shell.
 
 | Location       | Responsibility                                                                                                  |
 | -------------- | --------------------------------------------------------------------------------------------------------------- |
-| `index.tsx`    | App coordinator, local state, tab swiping, navigation, and screen composition.                                  |
+| `index.tsx`    | App coordinator, tab swiping, navigation, and screen composition.                                               |
 | `types.ts`     | Shared screen, role, time, and set-count types.                                                                 |
 | `constants.ts` | Picker data, demo participants, and currency formatting helpers.                                                |
+| `store.ts`     | Jotai atoms for all sessions and the currently selected session.                                                |
 | `components/`  | Small shared UI primitives such as `MoneyInput` and `PaddleHeader`.                                             |
 | `screens/`     | Page-level screens grouped by workflow: primary tabs, creation, session, scoring, payment, summary, and review. |
 
 ## State and interactions
 
-The demo keeps its state locally in `PaddleApp`:
+`store.ts` owns the shared session state:
+
+- `sessionsAtom` contains the demo session list, including creator ownership, current-user participation (`invited` or `checked-in`), open/completed status, session details, check-ins, and current-user payment state.
+- `selectedSessionIdAtom` identifies the session opened from Home or Report.
+- Creating a session adds it to the atom; check-in, payment confirmation, and ending a session update that same selected record.
+
+On the Home tab, Host filters sessions to records created by the current user;
+Người chơi filters to sessions where the current user is invited or already
+checked in.
+
+`PaddleApp` keeps only UI-local state:
 
 - Role selection: `host` or `player`.
 - Session details: name, date, start time, cost mode, cost value/range, and optional set count.
-- Session progress: check-ins, score saved state, and payment confirmation.
+- Form drafts, score saved state, and session-detail inputs before creating a new session.
 - Review state: venue/host star rating and next-set setting.
 - Short user feedback is shown through a local toast state.
 

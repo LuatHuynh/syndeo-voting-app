@@ -315,6 +315,14 @@
   text-transform: uppercase;
   letter-spacing: 0.35px;
 }
+.paddle-status.is-completed {
+  background: #e7e9e6;
+  color: #5e665f;
+}
+.paddle-session-list {
+  display: grid;
+  gap: 10px;
+}
 .paddle-chevron {
   margin-left: auto;
   color: var(--muted);
@@ -653,7 +661,6 @@
 }
 .paddle-paid,
 .paddle-unpaid {
-  margin-left: auto;
   font-size: 10px;
   font-weight: 800;
 }
@@ -663,10 +670,82 @@
 .paddle-unpaid {
   color: #bd653f;
 }
+.paddle-checkin-toggle {
+  margin-left: 8px;
+  border: 1px solid #b6d3c2;
+  border-radius: 999px;
+  background: #f1f8f3;
+  color: var(--court-deep);
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.paddle-checkin-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .paddle-action-stack {
   display: grid;
   gap: 10px;
   margin-top: 25px;
+}
+
+.paddle-history-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.paddle-match-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.paddle-match-history-item {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.paddle-match-history-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.paddle-match-history-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.paddle-match-history-row strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+.paddle-match-history-row strong.is-winner {
+  color: var(--court-deep);
+  background: #e8f7ec;
+  border: 1px solid #a8d8b8;
+  border-radius: 5px;
+  padding: 4px 6px;
+}
+
+.paddle-match-history-row strong:last-child {
+  text-align: right;
+}
+
+.paddle-match-history-row b {
+  font-size: 14px;
+  color: var(--court-deep);
 }
 
 .paddle-match-card {
@@ -675,6 +754,62 @@
   border-radius: 7px;
   padding: 18px;
   text-align: center;
+}
+.paddle-format-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.paddle-format-switch button {
+  border: 1px solid #bdd0c2;
+  border-radius: 5px;
+  min-height: 38px;
+  background: #fff;
+  color: var(--court-deep);
+  font-size: 12px;
+  font-weight: 800;
+}
+.paddle-format-switch button.is-active {
+  background: var(--court);
+  color: #fff;
+  border-color: var(--court);
+}
+.paddle-format-switch button:disabled {
+  opacity: 0.4;
+}
+.paddle-score-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.paddle-score-warning {
+  margin: 8px 0 0;
+  color: #bd653f;
+  font-size: 11px;
+  font-weight: 700;
+}
+.paddle-lineup-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  text-align: left;
+}
+.paddle-lineup-grid label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.paddle-lineup-grid select {
+  min-height: 36px;
+  border-radius: 5px;
+  border: 1px solid #cbd5ca;
+  background: #fff;
+  color: var(--ink);
+  padding: 7px 10px;
 }
 .paddle-versus {
   display: grid;
@@ -688,6 +823,12 @@
   align-items: center;
   gap: 7px;
 }
+.paddle-versus div.is-winner {
+  background: #e8f7ec;
+  border: 1px solid #a8d8b8;
+  border-radius: 6px;
+  padding: 8px 6px;
+}
 .paddle-versus b {
   font-size: 11px;
   color: var(--muted);
@@ -700,6 +841,12 @@
   justify-content: center;
   align-items: center;
   gap: 10px;
+}
+.paddle-score-input > div {
+  border-radius: 6px;
+}
+.paddle-score-input > div.is-winner {
+  box-shadow: 0 0 0 2px #7ec49a;
 }
 .paddle-score-input input {
   width: 60px;
@@ -751,6 +898,12 @@
   accent-color: var(--court);
   width: 17px;
   height: 17px;
+}
+.paddle-result-hint {
+  margin-top: 10px;
+  color: var(--court-deep);
+  font-size: 12px;
+  font-weight: 700;
 }
 .paddle-bottom-action {
   margin-top: 29px;
@@ -817,6 +970,12 @@
 .paddle-balance .positive strong {
   color: var(--court);
 }
+.paddle-balance .negative {
+  background: #fff1ec;
+}
+.paddle-balance .negative strong {
+  color: #b24828;
+}
 .paddle-expenses {
   display: grid;
   gap: 1px;
@@ -831,6 +990,25 @@
 }
 .paddle-expenses b {
   font-size: 13px;
+}
+
+.paddle-summary-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.paddle-summary-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.paddle-summary-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 .paddle-payment-page {
